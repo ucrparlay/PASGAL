@@ -3,7 +3,7 @@ PASGAL: Parallel And Scalable Graph Algorithm Library.
 
 Prerequisite
 --------
-+ g++ or clang with C++17 features support (Tested with g++ 7.5.0 and clang 14.0.6) on Linux machines.  
++ g++ or clang with C++17 features support (tested with g++ 13.2.1 and clang 14.0.6) on Linux machines.  
 + We use [ParlayLib](https://github.com/cmuparlay/parlaylib) to support fork-join parallelism and some parallel primitives. It is provided as a submodule in our repository.  
 
 Algorithms
