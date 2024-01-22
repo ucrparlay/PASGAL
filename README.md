@@ -20,8 +20,9 @@ Compilation
 A Makefile is provided in each subdirectory. For example, to compile BFS:  
 ```bash
 cd src/BFS  
-make
+make  
 ```
+
 Running the code
 --------
 Instructions on running the code will be provided when running the executables without any command line options. A sample output from BFS:  
