@@ -10,8 +10,8 @@ Algorithms
 --------
 We include the following four algorithms in our repository. The source code can be found under ``src/``.  
 * BFS: Breadth-First Search  
-* BCC: Biconnected Components  
-* SCC: Strongly Connected Components  
+* BCC: Biconnected Components.  The BCC algorithm is from the paper [[1]](#1).
+* SCC: Strongly Connected Components.  The SCC algorithm is from the paper [[2]](#2).
 * SSSP: Single-Source Shortest Paths  
 
 
@@ -42,3 +42,10 @@ The application can auto-detect the format of the input graph based on the suffi
     + offset[] - offset[ $i$ ] (inclusive) and offset[ $i+1$ ] (exclusive) represents the range of neighbors list of the $i$-th vertex in the edges array (64-bit array of length $n+1$)  
     + edges[] - edges list (32-bit array of length $m$)  
 + `.adj` The adjacency graph format from [Problem Based Benchmark suite](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html).  
+
+## References
+<a id="1">[1]</a> 
+Dong, Xiaojun, et al. "Provably Fast and Space-Efficient Parallel Biconnectivity." Proceedings of the 28th ACM SIGPLAN Annual Symposium on Principles and Practice of Parallel Programming. 2023.
+
+<a id="2">[2]</a>
+Wang, Letong, et al. "Parallel Strong Connectivity Based on Faster Reachability." Proceedings of the ACM on Management of Data 1.2 (2023): 1-29.
