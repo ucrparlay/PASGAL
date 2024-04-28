@@ -51,5 +51,6 @@ Xiaojun Dong, Yan Gu, Yihan Sun, and Yunming Zhang. 2021. Efficient Stepping Alg
 Xiaojun Dong, Letong Wang, Yan Gu, and Yihan Sun. 2023. Provably Fast and Space-Efficient Parallel Biconnectivity. In ACM Symposium on Principles and Practice of Parallel Programming (PPOPP). 52–65.
 
 <a id="3">[3]</a>
-Letong Wang, Xiaojun Dong, Yan Gu, and Yihan Sun. 2023. Parallel Strong Connectivity Based on Faster Reachability. In ACM SIGMOD International Conference on Management of Data (SIGMOD).
+Letong Wang, Xiaojun Dong, Yan Gu, and Yihan Sun. 2023. Parallel Strong Connectivity Based on Faster Reachability. ACM SIGMOD International Conference on Management of Data (SIGMOD) 1, 2 (2023), 1–29.
+
 
