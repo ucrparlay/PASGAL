@@ -9,10 +9,10 @@ Prerequisite
 Algorithms
 --------
 We include the following four algorithms in our repository. The source code can be found under ``src/``.  
-* BFS: Breadth-First Search  
-* BCC: Biconnected Components.  The BCC algorithm is from the paper [[1]](#1).
-* SCC: Strongly Connected Components.  The SCC algorithm is from the paper [[2]](#2).
-* SSSP: Single-Source Shortest Paths  
+* BFS: Breadth-First Search.  
+* SSSP: Single-Source Shortest Paths. The SSSP algorithms are from the paper [[1]](#1).  
+* BCC: Biconnected Components. The BCC algorithm is from the paper [[2]](#2).  
+* SCC: Strongly Connected Components. The SCC algorithm is from the paper [[3]](#3).  
 
 
 Compilation
@@ -44,8 +44,12 @@ The application can auto-detect the format of the input graph based on the suffi
 + `.adj` The adjacency graph format from [Problem Based Benchmark suite](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html).  
 
 ## References
-<a id="1">[1]</a> 
-Dong, Xiaojun, et al. "Provably Fast and Space-Efficient Parallel Biconnectivity." Proceedings of the 28th ACM SIGPLAN Annual Symposium on Principles and Practice of Parallel Programming. 2023.
+<a id="1">[1]</a>
+Xiaojun Dong, Yan Gu, Yihan Sun, and Yunming Zhang. 2021. Efficient Stepping Algorithms and Implementations for Parallel Shortest Paths. In ACM Symposium on Parallelism in Algorithms and Architectures (SPAA). 184–197.
 
-<a id="2">[2]</a>
-Wang, Letong, et al. "Parallel Strong Connectivity Based on Faster Reachability." Proceedings of the ACM on Management of Data 1.2 (2023): 1-29.
+<a id="2">[2]</a> 
+Xiaojun Dong, Letong Wang, Yan Gu, and Yihan Sun. 2023. Provably Fast and Space-Efficient Parallel Biconnectivity. In ACM Symposium on Principles and Practice of Parallel Programming (PPOPP). 52–65.
+
+<a id="3">[3]</a>
+Letong Wang, Xiaojun Dong, Yan Gu, and Yihan Sun. 2023. Parallel Strong Connectivity Based on Faster Reachability. In ACM SIGMOD International Conference on Management of Data (SIGMOD).
+
