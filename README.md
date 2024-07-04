@@ -44,6 +44,16 @@ The application can auto-detect the format of the input graph based on the suffi
 + `.adj` The adjacency graph format from [Problem Based Benchmark suite](http://www.cs.cmu.edu/~pbbs/benchmarks/graphIO.html).  
 
 ## References
+If you use our code, please cite our paper:
+```
+@inproceedings{dong2024pasgal,
+  title = {Brief Announcement: PASGAL: Parallel And Scalable Graph Algorithm Library},
+  author = {Dong, Xiaojun and Gu, Yan and Sun, Yihan and Wang, Letong},
+  booktitle = {ACM Symposium on Parallelism in Algorithms and Architectures (SPAA)},
+  year = {2024},
+}
+```
+
 <a id="1">[1]</a>
 Xiaojun Dong, Yan Gu, Yihan Sun, and Yunming Zhang. 2021. Efficient Stepping Algorithms and Implementations for Parallel Shortest Paths. In ACM Symposium on Parallelism in Algorithms and Architectures (SPAA). 184–197.
 
