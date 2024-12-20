@@ -68,6 +68,11 @@ class Graph {
   parlay::sequence<EdgeId> in_offsets;
   parlay::sequence<Edge> in_edges;
 
+  Graph() {
+    n = m = 0;
+    symmetrized = weighted = false;
+  }
+
   auto in_neighors(NodeId u) const {
     if (symmetrized) {
       return edges.cut(offsets[u], offsets[u + 1]);
@@ -134,6 +139,7 @@ class Graph {
     });
     if (weighted_input) {
       if constexpr (std::is_same_v<EdgeTy, Empty>) {
+        weighted = false;
         std::cout << "Warning: skipping edge weights in file" << std::endl;
       } else {
         weighted = true;
@@ -149,6 +155,8 @@ class Graph {
           }
         });
       }
+    } else {
+      weighted = false;
     }
   }
 
@@ -185,7 +193,7 @@ class Graph {
     }
   }
 
-  void read_hyperlink2012(const char* filename) {
+  void read_hyperlink2012(const char *filename) {
     std::ifstream ifs(filename);
     if (!ifs.is_open()) {
       std::cerr << "Error: Cannot open file " << filename << std::endl;
