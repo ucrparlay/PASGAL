@@ -28,7 +28,9 @@ Instructions on running the code will be provided when running the executables w
 >         -s,     symmetrized input graph  
 >         -v,     verify result  
 
-## Graph Formats
+Graph Formats
+--------
+The graphs tested in our papers can be found at: https://pasgal-bs.cs.ucr.edu/.
 The application can auto-detect the format of the input graph based on the suffix of the filename. Here is a list of supported graph formats: 
 + `.bin` The binary graph format from [GBBS](https://github.com/ParAlg/gbbs). It uses the compressed sparse row (CSR) format and is organized as follows:  
     + $n$ - number of vertices (64-bit variable)  
