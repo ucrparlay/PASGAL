@@ -33,7 +33,8 @@ int main(int argc, char *argv[]) {
   Graph G;
   G.read_graph(input_path);
   if(return_json) {
-    
+    fprintf(stdout, "{'vertices_count': %zu, 'edges_count': %zu, 'density': %f, 'degree': %f}\n",
+            input_path, G.n, G.m, ((double)G.m * 2) / ((double)G.n * ((double)G.n - 1)), (double)G.n/(double)G.m);
   } else {
     fprintf(stdout, "Running on %s: |V|=%zu, |E|=%zu, density=%f, degree=%f\n",
             input_path, G.n, G.m, ((double)G.m * 2) / ((double)G.n * ((double)G.n - 1)), (double)G.n/(double)G.m);
