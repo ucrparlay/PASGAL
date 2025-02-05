@@ -34,7 +34,7 @@ ifdef STDALLOC
 CPPFLAGS += -DPARLAY_USE_STD_ALLOC
 endif
 
-all: scc tarjan
+all: basic_statistics
 
 basic_statistics: basic_statistics.cpp
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) basic_statistics.cpp -o basic_statistics
