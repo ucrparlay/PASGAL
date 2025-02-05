@@ -5,9 +5,6 @@
 
 #include "graph.h"
 
-constexpr int NUM_ROUND = 10;
-
-
 int main(int argc, char *argv[]) {
   if (argc == 1) {
     fprintf(stderr,
