@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
   }
   char c;
   bool return_json = false;
-  bool symmetrized false;
+  bool symmetrized = false;
   char const *input_path = nullptr;
   while ((c = getopt(argc, argv, "i:j")) != -1) {
     switch (c) {
