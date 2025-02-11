@@ -46,8 +46,8 @@ int main(int argc, char *argv[]) {
     if(out_degree > max_out_degree) {
       max_out_degree = out_degree;
     }
-    if(min_out_degree == -1 || out_degree < min_out_degree) {
-      min_out_degree = out_degree
+    if(min_out_degree == (size_t)-1 || out_degree < min_out_degree) {
+      min_out_degree = out_degree;
     }
     if(out_degree == 0) {
       zero_out_degree_count++;
@@ -56,8 +56,8 @@ int main(int argc, char *argv[]) {
     if(in_degree > max_in_degree) {
       max_in_degree = in_degree;
     }
-    if(min_in_degree == -1 || in_degree < min_in_degree) {
-      min_in_degree = in_degree
+    if(min_in_degree == (size_t)-1 || in_degree < min_in_degree) {
+      min_in_degree = in_degree;
     }
     if(in_degree == 0) {
       zero_in_degree_count++;
