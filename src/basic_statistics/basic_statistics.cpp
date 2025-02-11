@@ -56,9 +56,9 @@ int main(int argc, char *argv[]) {
     }
   }
   if(match) {
-    fprintf(stdout, "The graph matched the symmetrized matched.")
+    fprintf(stdout, "The graph matched the symmetrized matched.");
   } else {
-    fprintf(stdout, "The graph did not matched the symmetrized matched.")
+    fprintf(stdout, "The graph did not matched the symmetrized matched.");
   }
   if(return_json) {
     fprintf(stdout, "{\"vertices_count\": %zu, \"edges_count\": %zu, \"density\": %f, \"avg_degree\": %f}\n",
