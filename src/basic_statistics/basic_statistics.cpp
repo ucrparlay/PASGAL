@@ -17,6 +17,7 @@ int main(int argc, char *argv[]) {
   }
   char c;
   bool return_json = false;
+  bool symmetrized false;
   char const *input_path = nullptr;
   while ((c = getopt(argc, argv, "i:j")) != -1) {
     switch (c) {
@@ -26,12 +27,39 @@ int main(int argc, char *argv[]) {
       case 'j':
         return_json = true;
         break;
+      case 's':
+        symmetrized = true;
+        break;
     }
   }
 
+
+
   printf("Reading graph...\n");
   Graph G;
+
   G.read_graph(input_path);
+  G.symmetrized = symmetrized;
+  // if (!G.symmetrized) {
+  G.make_inverse();
+  // }
+
+  bool match = true;
+  for(size_t i = 0; i < G.n; i++) {
+    if(G.offsets[i] != G.in_offsets[i]) {
+      match = false
+    }
+  }
+  for(size_t i = 0; i < G.m; i++) {
+    if(G.edges[i] != G.in_edges[i]) {
+      match = false
+    }
+  }
+  if(match) {
+    fprintf(stdout, "The graph matched the symmetrized matched.")
+  } else {
+    fprintf(stdout, "The graph did not matched the symmetrized matched.")
+  }
   if(return_json) {
     fprintf(stdout, "{\"vertices_count\": %zu, \"edges_count\": %zu, \"density\": %f, \"avg_degree\": %f}\n",
             G.n, G.m, ((double)G.m * 2) / ((double)G.n * ((double)G.n - 1)), (double)G.m/(double)G.n);
