@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
             G.n, G.m, max_out_degree, min_out_degree, zero_out_degree_count, max_in_degree, min_in_degree, zero_in_degree_count);
   } else {
     fprintf(stdout, "Running on %s:\n|V| = %zu\n|E| = %zu\nMax Out-degree = %zu\nMin Out-degree = %zu\nZero Out-degree Count = %zu\nMax In-degree = %zu\nMin In-degree = %zu\nZero In-degree Count = %zu\n",
-            G.n, G.m, max_out_degree, min_out_degree, zero_out_degree_count, max_in_degree, min_in_degree, zero_in_degree_count);
+            input_path, G.n, G.m, max_out_degree, min_out_degree, zero_out_degree_count, max_in_degree, min_in_degree, zero_in_degree_count);
   }
   return 0;
 }
