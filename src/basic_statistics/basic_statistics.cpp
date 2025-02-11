@@ -47,12 +47,12 @@ int main(int argc, char *argv[]) {
   bool match = true;
   for(size_t i = 0; i < G.n; i++) {
     if(G.offsets[i] != G.in_offsets[i]) {
-      match = false
+      match = false;
     }
   }
   for(size_t i = 0; i < G.m; i++) {
     if(G.edges[i] != G.in_edges[i]) {
-      match = false
+      match = false;
     }
   }
   if(match) {
