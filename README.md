@@ -11,7 +11,7 @@ We include the following four algorithms in our repository. The source code can 
 * SSSP: Single-Source Shortest Paths. The SSSP algorithms are from the paper [[1]](#1).  
 * BCC: Biconnected Components. The BCC algorithm is from the paper [[2]](#2).  
 * SCC: Strongly Connected Components. The SCC algorithm is from the paper [[3]](#3).  
-
+* basic_analytics: For computing no of vertices, edges, min_degree, max_degree, zero_degree_count.
 
 ## Compilation
 A Makefile is provided in each subdirectory. For example, to compile BFS:  
@@ -100,6 +100,12 @@ After compilation, two executables will be avaible in `src/SSSP`:
 
 ```sh
 ./sssp -i path_to_graph/soc-LiveJournal1_wgh18.adj
+```
+
+#### Running basic_analytics
+After compilation, single executable will be available in `src/basic_analytics`. Run the executable as shown below:
+```sh
+./basic_analytics -i path_to_graph/soc-LiveJournal1_wgh18.adj
 ```
 
 
