@@ -34,10 +34,10 @@ ifdef STDALLOC
 CPPFLAGS += -DPARLAY_USE_STD_ALLOC
 endif
 
-all: basic_statistics
+all: basic_analytics
 
-basic_statistics: basic_statistics.cpp
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) basic_statistics.cpp -o basic_statistics
+basic_analytics: basic_analytics.cpp
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) basic_analytics.cpp -o basic_analytics
 
 clean:
-	rm basic_statistics
+	rm basic_analytics
