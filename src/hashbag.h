@@ -15,7 +15,8 @@ template <class ET>
 class hashbag {
   static constexpr size_t BLOCK_SIZE = 1 << 10;
   static constexpr size_t MIN_BAG_SIZE = 1 << 6;
-  static constexpr size_t OVER_SAMPLING = 4;
+  static constexpr size_t MAX_PROBES = 1000;
+  static constexpr size_t EXP_NUM_SAMPLES = 32;
 
   size_t n;
   const ET empty;
@@ -35,12 +36,12 @@ class hashbag {
     bag_id = 0;
     size_t cur_size = MIN_BAG_SIZE;
     size_t total_size = 0;
-    for (size_t i = 0; total_size * load_factor < n; i++) {
-      size_t exp_samples = OVER_SAMPLING * parlay::log2_up(cur_size);
-      size_t threshold = exp_samples / (cur_size * load_factor) * UINT_MAX;
+    // for (size_t i = 0; total_size * load_factor < n; i++) {
+    while (total_size * load_factor < n) {
+      double sample_rate = EXP_NUM_SAMPLES / (cur_size * load_factor);
       bag_sizes.push_back(cur_size);
       offsets.push_back(total_size);
-      samplers.push_back(Sampler(exp_samples, threshold));
+      samplers.push_back(Sampler(EXP_NUM_SAMPLES, sample_rate));
       total_size += cur_size;
       cur_size *= 2;
     }
@@ -82,10 +83,8 @@ class hashbag {
     bool callback = false;
     while (local_id + 1 < bag_sizes.size() &&
            !samplers[local_id].sample(random_number, callback)) {
-      local_id++;
-    }
-    if (callback) {
-      bag_id.fetch_add(1);
+      compare_and_swap(&bag_id, local_id, local_id + 1);
+      local_id = bag_id;
     }
     size_t num_probes = 0;
     idx = random_number & (bag_sizes[local_id] - 1);
@@ -95,15 +94,25 @@ class hashbag {
         idx = 0;
       }
       num_probes++;
-      if (num_probes == bag_sizes[local_id]) {
-        local_id++;
-        if (local_id >= bag_sizes.size()) {
-          printf("hashbag is full\n");
-          assert(false);
+      if (num_probes == bag_sizes[local_id] || num_probes == MAX_PROBES) {
+        num_probes = 0;
+        compare_and_swap(&bag_id, local_id, local_id + 1);
+        if (local_id != bag_id) {
+          local_id = bag_id;
+          assert(local_id < bag_sizes.size() && "hashbag is full");
+          idx = random_number & (bag_sizes[local_id] - 1);
         }
-        idx = random_number & (bag_sizes[local_id] - 1);
       }
     }
+  }
+
+  parlay::sequence<ET> pack() {
+    size_t len = offsets[bag_id] + bag_sizes[bag_id];
+    auto pred = parlay::delayed_seq<bool>(
+        len, [&](size_t i) { return pool[i] != empty; });
+    parlay::sequence<ET> records = parlay::pack(pool.cut(0, len), pred);
+    clear();
+    return records;
   }
 
   template <typename Seq>
@@ -111,6 +120,17 @@ class hashbag {
     size_t len = offsets[bag_id] + bag_sizes[bag_id];
     auto pred = parlay::delayed_seq<bool>(
         len, [&](size_t i) { return pool[i] != empty; });
+    size_t num_records = parlay::pack_into_uninitialized(pool.cut(0, len), pred,
+                                                         make_slice(out));
+    clear();
+    return num_records;
+  }
+
+  template <typename Seq, typename UnaryPred>
+  size_t pack_into_pred(Seq &&out, UnaryPred &&f) {
+    size_t len = offsets[bag_id] + bag_sizes[bag_id];
+    auto pred = parlay::delayed_seq<bool>(
+        len, [&](size_t i) { return pool[i] != empty && f(pool[i]); });
     size_t num_records = parlay::pack_into_uninitialized(pool.cut(0, len), pred,
                                                          make_slice(out));
     clear();
