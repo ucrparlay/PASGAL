@@ -110,6 +110,11 @@ After compilation, single executable will be available in `src/basic_analytics`.
 
 
 ## References
+
+Xiaojun Dong, Yan Gu, Yihan Sun, Letong Wang. [Brief Announcement: PASGAL: Parallel And Scalable Graph Algorithm Library](https://dl.acm.org/doi/10.1145/3626183.3660258). In *ACM Symposium on Parallelism in Algorithms and Architectures (SPAA)*, pp. 439-442, 2024.  
+
+Xiaojun Dong, Yan Gu, Yihan Sun, Letong Wang. [PASGAL: Parallel And Scalable Graph Algorithm Library](https://arxiv.org/abs/2404.17101). *arXiv preprint: 2404.17101*, 2024.  
+
 If you use our code, please cite our paper:
 ```
 @inproceedings{dong2024pasgal,
