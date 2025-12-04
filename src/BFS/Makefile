@@ -34,6 +34,10 @@ ifdef STDALLOC
 CPPFLAGS += -DPARLAY_USE_STD_ALLOC
 endif
 
+ifdef STAT
+CPPFLAGS += -DSTAT
+endif
+
 all: bfs seq-bfs bfs_test
 
 bfs:	bfs.cpp bfs.h seq-bfs.h
@@ -44,6 +48,12 @@ seq-bfs:	seq-bfs.cpp seq-bfs.h
 
 bfs_test:	bfs_test.cpp bfs.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_test.cpp -o bfs_test
+
+bfs_delta:	bfs_delta.cpp bfs_delta.h seq-bfs.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_delta.cpp -o bfs_delta
+
+reachability:	reachability.cpp reachability.h seq-bfs.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) reachability.cpp -o reachability
 
 clean:
 	rm bfs seq-bfs bfs_test

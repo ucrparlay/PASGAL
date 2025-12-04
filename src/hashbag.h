@@ -36,7 +36,6 @@ class hashbag {
     bag_id = 0;
     size_t cur_size = MIN_BAG_SIZE;
     size_t total_size = 0;
-    // for (size_t i = 0; total_size * load_factor < n; i++) {
     while (total_size * load_factor < n) {
       double sample_rate = EXP_NUM_SAMPLES / (cur_size * load_factor);
       bag_sizes.push_back(cur_size);
