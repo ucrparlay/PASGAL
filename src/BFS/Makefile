@@ -20,7 +20,7 @@ CPPFLAGS += -pthread
 endif
 
 ifdef DEBUG
-CPPFLAGS += -DDEBUG -Og -g
+CPPFLAGS += -DDEBUG -O0 -g -fsanitize=address
 else ifdef PERF
 CC = g++
 CPPFLAGS += -Og -mcx16 -march=native -g
@@ -38,7 +38,7 @@ ifdef STAT
 CPPFLAGS += -DSTAT
 endif
 
-all: bfs seq-bfs bfs_test
+all: bfs seq-bfs bfs_test bfs_delta
 
 bfs:	bfs.cpp bfs.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs.cpp -o bfs

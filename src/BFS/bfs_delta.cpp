@@ -45,6 +45,7 @@ void run(Algo &algo, const Graph &G, bool verify, NodeId s) {
         if (dist[i] != exp_dist[i]) {
           printf("dist[%zu] = %d, exp_dist[%zu] = %d\n", i, dist[i], i,
                  exp_dist[i]);
+          fflush(stdout);
           if (cnt++ > 10) {
             break;
           }
@@ -109,19 +110,19 @@ int main(int argc, char *argv[]) {
   fprintf(stdout, "Running on %s: |V|=%zu, |E|=%zu, num_src=%d, num_round=%d\n",
           input_path, G.n, G.m, NUM_SRC, NUM_ROUND);
 
-  // for (int step = 8; step <= 1 << 10; step *= 2) {
-  int step = 1;
-  BFS solver(G, step);
-  all_time = 0;
-  if (source == UINT_MAX) {
-    run(solver, G, verify);
-    all_time /= NUM_SRC;
-  } else {
-    run(solver, G, verify, source);
+  for (int step = 1; step <= 1 << 10; step *= 2) {
+    printf("step: %d\n", step);
+    BFS solver(G, step);
+    all_time = 0;
+    if (source == UINT_MAX) {
+      run(solver, G, verify);
+      all_time /= NUM_SRC;
+    } else {
+      run(solver, G, verify, source);
+    }
+    ofstream ofs("bfs_delta.tsv", ios_base::app);
+    ofs << step << '\t' << all_time << '\n';
+    ofs.close();
   }
-  ofstream ofs("bfs_delta.tsv", ios_base::app);
-  ofs << step << '\t' << all_time << '\n';
-  ofs.close();
-  // }
   return 0;
 }
