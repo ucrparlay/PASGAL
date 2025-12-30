@@ -9,23 +9,38 @@
 #include "parlay/sequence.h"
 #include "parlay/utilities.h"
 #include "sampler.h"
-#include "utils.h"
-
 template <class ET>
 class hashbag {
+  static_assert(std::is_trivially_copyable_v<ET>,
+                "hashbag requires trivially copyable elements");
   static constexpr size_t BLOCK_SIZE = 1 << 10;
   static constexpr size_t MIN_BAG_SIZE = 1 << 6;
   static constexpr size_t MAX_PROBES = 1000;
   static constexpr size_t EXP_NUM_SAMPLES = 32;
+ 
+   size_t n;
+   ET empty;
+   std::atomic<uint32_t> bag_id;
+ 
+   parlay::sequence<size_t> bag_sizes;
+   parlay::sequence<size_t> offsets;
+   parlay::sequence<Sampler> samplers;
+   parlay::sequence<ET> pool;
+ 
+  bool claim_slot(size_t pos, ET value) {
+      std::atomic_ref<ET> slot(pool[pos]);
+    ET expected = empty;
+    return slot.compare_exchange_strong(expected, value,
+                                        std::memory_order_acq_rel,
+                                        std::memory_order_relaxed);
+  }
 
-  size_t n;
-  const ET empty;
-  std::atomic<uint32_t> bag_id;
-
-  parlay::sequence<size_t> bag_sizes;
-  parlay::sequence<size_t> offsets;
-  parlay::sequence<Sampler> samplers;
-  parlay::sequence<ET> pool;
+  void try_promote(uint32_t current) {
+    uint32_t expected = current;
+    bag_id.compare_exchange_strong(expected, current + 1,
+                                   std::memory_order_acq_rel,
+                                   std::memory_order_relaxed);
+  }
 
  public:
   hashbag() = default;
@@ -56,14 +71,40 @@ class hashbag {
         samplers(other.samplers),
         pool(other.pool) {}
 
-  hashbag(hashbag &&other)
+  hashbag(hashbag &&other) noexcept
       : n(other.n),
         empty(other.empty),
         bag_id(other.bag_id.load()),
-        bag_sizes(other.bag_sizes),
-        offsets(other.offsets),
-        samplers(other.samplers),
-        pool(other.pool) {}
+        bag_sizes(std::move(other.bag_sizes)),
+        offsets(std::move(other.offsets)),
+        samplers(std::move(other.samplers)),
+        pool(std::move(other.pool)) {}
+
+  hashbag &operator=(const hashbag &other) {
+    if (this != &other) {
+      n = other.n;
+      empty = other.empty;
+      bag_id.store(other.bag_id.load());
+      bag_sizes = other.bag_sizes;
+      offsets = other.offsets;
+      samplers = other.samplers;
+      pool = other.pool;
+    }
+    return *this;
+  }
+
+  hashbag &operator=(hashbag &&other) noexcept {
+    if (this != &other) {
+      n = other.n;
+      empty = other.empty;
+      bag_id.store(other.bag_id.load());
+      bag_sizes = std::move(other.bag_sizes);
+      offsets = std::move(other.offsets);
+      samplers = std::move(other.samplers);
+      pool = std::move(other.pool);
+    }
+    return *this;
+  }
 
   void clear() {
     for (size_t i = 0; i <= bag_id; i++) {
@@ -76,18 +117,18 @@ class hashbag {
   }
 
   void insert(ET u) {
-    uint32_t local_id = bag_id;
+    uint32_t local_id = bag_id.load(std::memory_order_acquire);
     auto random_number = parlay::hash32(u);
     size_t idx = random_number & (bag_sizes[local_id] - 1);
     bool callback = false;
     while (local_id + 1 < bag_sizes.size() &&
            !samplers[local_id].sample(random_number, callback)) {
-      compare_and_swap(&bag_id, local_id, local_id + 1);
-      local_id = bag_id;
+      try_promote(local_id);
+      local_id = bag_id.load(std::memory_order_acquire);
     }
     size_t num_probes = 0;
     idx = random_number & (bag_sizes[local_id] - 1);
-    while (!compare_and_swap(&pool[offsets[local_id] + idx], empty, u)) {
+    while (!claim_slot(offsets[local_id] + idx, u)) {
       idx++;
       if (idx == bag_sizes[local_id]) {
         idx = 0;
@@ -95,9 +136,10 @@ class hashbag {
       num_probes++;
       if (num_probes == bag_sizes[local_id] || num_probes == MAX_PROBES) {
         num_probes = 0;
-        compare_and_swap(&bag_id, local_id, local_id + 1);
-        if (local_id != bag_id) {
-          local_id = bag_id;
+        try_promote(local_id);
+        uint32_t current = bag_id.load(std::memory_order_acquire);
+        if (local_id != current) {
+          local_id = current;
           assert(local_id < bag_sizes.size() && "hashbag is full");
           idx = random_number & (bag_sizes[local_id] - 1);
         }
