@@ -114,7 +114,9 @@ class BFS {
 
   void sparse_relax(size_t frontier_size) {
     [[maybe_unused]] static const int num_threads = parlay::num_workers();
-    const size_t queue_size = MAX_QUEUE_SIZE;
+    // const size_t queue_size = MAX_QUEUE_SIZE;
+    const size_t queue_size = std::min(
+        MAX_QUEUE_SIZE, std::max((size_t)1, num_threads * BETA / frontier_size));
     parallel_for(0, frontier_size, [&](size_t i) {
       NodeId f = frontier_[i];
       assert(load_dist(f) < threshold_);
@@ -167,7 +169,8 @@ class BFS {
       }
       while (frontier_size) {
         parallel_for(0, frontier_size, [&](NodeId i) {
-          in_curr_frontier_[frontier_[i]].store(false, std::memory_order_release);
+          in_curr_frontier_[frontier_[i]].store(false,
+                                                std::memory_order_release);
         });
         sparse_relax(frontier_size);
         frontier_size = curr_bag_.pack_into(make_slice(frontier_));
