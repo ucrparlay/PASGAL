@@ -3,6 +3,8 @@
 !*.*
 !*/
 !Makefile
+__pycache__/
+logs/
 
 # Output/debug files
 .vscode/

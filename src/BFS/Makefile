@@ -38,7 +38,7 @@ ifdef STAT
 CPPFLAGS += -DSTAT
 endif
 
-all: bfs seq-bfs bfs_test bfs_delta
+all: bfs seq-bfs bfs_test bfs_delta bfs_delta_winning_tree
 
 bfs:	bfs.cpp bfs.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs.cpp -o bfs
@@ -51,6 +51,9 @@ bfs_test:	bfs_test.cpp bfs.h seq-bfs.h
 
 bfs_delta:	bfs_delta.cpp bfs_delta.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_delta.cpp -o bfs_delta
+
+bfs_delta_winning_tree:	bfs_delta_winning_tree.cpp bfs_delta_winning_tree.h seq-bfs.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_delta_winning_tree.cpp -o bfs_delta_winning_tree
 
 reachability:	reachability.cpp reachability.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) reachability.cpp -o reachability

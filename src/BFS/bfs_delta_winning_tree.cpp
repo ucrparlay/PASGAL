@@ -1,4 +1,4 @@
-#include "bfs_delta.h"
+#include "bfs_delta_winning_tree.h"
 
 #include <cmath>
 #include <filesystem>
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
   }
   char c;
   char const *input_path = nullptr;
-  char const *output_path = "bfs_delta.tsv";
+  char const *output_path = "bfs_delta_winning_tree.tsv";
   bool symmetrized = false;
   bool verify = false;
   uint32_t source = UINT_MAX;

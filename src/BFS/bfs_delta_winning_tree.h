@@ -4,7 +4,7 @@
 #include <functional>
 
 #include "graph.h"
-#include "hashbag.h"
+#include "winning_tree.h"
 #include "parlay/sequence.h"
 #include "parlay/slice.h"
 #include "parlay/utilities.h"
@@ -27,12 +27,9 @@ class BFS {
   const Graph &graph_;
   NodeId threshold_;
   NodeId delta_;
-  hashbag<NodeId> curr_bag_;
-  hashbag<NodeId> next_bag_;
-  sequence<NodeId> frontier_;
+  WinningTree curr_bag_;
+  WinningTree next_bag_;
   sequence<NodeId> dist_;
-  sequence<std::atomic<bool>> in_curr_frontier_;
-  sequence<std::atomic<bool>> in_next_frontier_;
   constexpr static bool use_local_queue = true;
 
   NodeId load_dist(NodeId v,
@@ -57,39 +54,27 @@ class BFS {
   BFS() = delete;
   BFS(const Graph &graph, NodeId delta)
       : graph_(graph), delta_(delta), curr_bag_(graph.n), next_bag_(graph.n) {
-    frontier_ = sequence<NodeId>::uninitialized(graph.n);
     dist_ = sequence<NodeId>::uninitialized(graph.n);
-    in_curr_frontier_ = sequence<std::atomic<bool>>::uninitialized(graph.n);
-    in_next_frontier_ = sequence<std::atomic<bool>>::uninitialized(graph.n);
   }
 
   void add_to_frontier(NodeId v, NodeId dist_v) {
-    bool expected = false;
     if (dist_v < threshold_) {
-      if (in_curr_frontier_[v].compare_exchange_strong(
-              expected, true, std::memory_order_acq_rel,
-              std::memory_order_relaxed)) {
-        curr_bag_.insert(v);
-      }
+      curr_bag_.insert(v);
     } else {
       assert(dist_v == threshold_);
-      if (in_next_frontier_[v].compare_exchange_strong(
-              expected, true, std::memory_order_acq_rel,
-              std::memory_order_relaxed)) {
-        next_bag_.insert(v);
-      }
+      next_bag_.insert(v);
     }
   }
 
   void add_to_frontier(NodeId v) { add_to_frontier(v, load_dist(v)); }
 
   void visit_neighbors_parallel(NodeId u) {
+    NodeId dist_u = load_dist(u);
+    NodeId new_dist = dist_u + 1;
     parallel_for(
         graph_.offsets[u], graph_.offsets[u + 1],
         [&](size_t i) {
           NodeId v = graph_.edges[i].v;
-          NodeId dist_u = load_dist(u);
-          NodeId new_dist = dist_u + 1;
           if (write_min_std(&dist_[v], new_dist)) {
             add_to_frontier(v, new_dist);
           }
@@ -98,10 +83,10 @@ class BFS {
   }
 
   void visit_neighbors_sequential(NodeId u, NodeId *local_queue, size_t &rear) {
+    NodeId dist_u = load_dist(u);
+    NodeId new_dist = dist_u + 1;
     for (EdgeId i = graph_.offsets[u]; i < graph_.offsets[u + 1]; i++) {
       NodeId v = graph_.edges[i].v;
-      NodeId dist_u = load_dist(u);
-      NodeId new_dist = dist_u + 1;
       if (write_min_std(&dist_[v], new_dist)) {
         if (rear < MAX_QUEUE_SIZE && new_dist < threshold_) {
           local_queue[rear++] = v;
@@ -113,16 +98,15 @@ class BFS {
   }
 
   bool sparse_relax() {
-    size_t frontier_size = curr_bag_.pack_into(make_slice(frontier_));
-    if (frontier_size == 0) {
+    if (curr_bag_.empty()) {
       return false;
     }
     [[maybe_unused]] static const int num_threads = parlay::num_workers();
+    size_t frontier_size = std::max((size_t)1, curr_bag_.size());
     const size_t queue_size = std::min(
         MAX_QUEUE_SIZE, std::max((size_t)1, num_threads * BETA / frontier_size));
-    parallel_for(0, frontier_size, [&](size_t i) {
-      NodeId f = frontier_[i];
-      in_curr_frontier_[f].store(false, std::memory_order_release);
+    curr_bag_.iterate_all_and_clear([&](size_t fv) {
+      NodeId f = static_cast<NodeId>(fv);
       assert(load_dist(f) < threshold_);
       if constexpr (use_local_queue) {
         NodeId local_queue[MAX_QUEUE_SIZE];
@@ -156,18 +140,14 @@ class BFS {
 
   sequence<NodeId> bfs(NodeId s) {
     parallel_for(0, graph_.n, [&](size_t i) {
-      in_curr_frontier_[i].store(false, std::memory_order_relaxed);
-      in_next_frontier_[i].store(false, std::memory_order_relaxed);
       dist_[i] = DIST_MAX;
     });
     dist_[s] = 0;
-    in_curr_frontier_[s].store(true, std::memory_order_relaxed);
     threshold_ = delta_;
 
     [[maybe_unused]] int round = 0;
     curr_bag_.insert(s);
     while (true) {
-      internal::timer t;
       if (!sparse_relax()) {
         break;
       }
@@ -175,7 +155,6 @@ class BFS {
       }
       round++;
       std::swap(curr_bag_, next_bag_);
-      std::swap(in_curr_frontier_, in_next_frontier_);
       threshold_ += delta_;
     }
     return dist_;

@@ -1,0 +1,119 @@
+diff --git a/src/BFS/bfs_delta.h b/src/BFS/bfs_delta.h
+index 794c75b..70deba1 100644
+--- a/src/BFS/bfs_delta.h
++++ b/src/BFS/bfs_delta.h
+@@ -4,7 +4,7 @@
+ #include <functional>
+ 
+ #include "graph.h"
+-#include "hashbag.h"
++#include "winning_tree.h"
+ #include "parlay/sequence.h"
+ #include "parlay/slice.h"
+ #include "parlay/utilities.h"
+@@ -27,12 +27,9 @@ class BFS {
+   const Graph &graph_;
+   NodeId threshold_;
+   NodeId delta_;
+-  hashbag<NodeId> curr_bag_;
+-  hashbag<NodeId> next_bag_;
+-  sequence<NodeId> frontier_;
++  WinningTree curr_bag_;
++  WinningTree next_bag_;
+   sequence<NodeId> dist_;
+-  sequence<std::atomic<bool>> in_curr_frontier_;
+-  sequence<std::atomic<bool>> in_next_frontier_;
+   constexpr static bool use_local_queue = true;
+ 
+   NodeId load_dist(NodeId v,
+@@ -57,27 +54,15 @@ class BFS {
+   BFS() = delete;
+   BFS(const Graph &graph, NodeId delta)
+       : graph_(graph), delta_(delta), curr_bag_(graph.n), next_bag_(graph.n) {
+-    frontier_ = sequence<NodeId>::uninitialized(graph.n);
+     dist_ = sequence<NodeId>::uninitialized(graph.n);
+-    in_curr_frontier_ = sequence<std::atomic<bool>>::uninitialized(graph.n);
+-    in_next_frontier_ = sequence<std::atomic<bool>>::uninitialized(graph.n);
+   }
+ 
+   void add_to_frontier(NodeId v, NodeId dist_v) {
+-    bool expected = false;
+     if (dist_v < threshold_) {
+-      if (in_curr_frontier_[v].compare_exchange_strong(
+-              expected, true, std::memory_order_acq_rel,
+-              std::memory_order_relaxed)) {
+-        curr_bag_.insert(v);
+-      }
++      curr_bag_.insert(v);
+     } else {
+       assert(dist_v == threshold_);
+-      if (in_next_frontier_[v].compare_exchange_strong(
+-              expected, true, std::memory_order_acq_rel,
+-              std::memory_order_relaxed)) {
+-        next_bag_.insert(v);
+-      }
++      next_bag_.insert(v);
+     }
+   }
+ 
+@@ -112,20 +97,15 @@ class BFS {
+     }
+   }
+ 
+-  void sparse_relax(size_t frontier_size) {
+-    [[maybe_unused]] static const int num_threads = parlay::num_workers();
+-    // const size_t queue_size = MAX_QUEUE_SIZE;
+-    const size_t queue_size = std::min(
+-        MAX_QUEUE_SIZE, std::max((size_t)1, num_threads * BETA / frontier_size));
+-    parallel_for(0, frontier_size, [&](size_t i) {
+-      NodeId f = frontier_[i];
++  void sparse_relax() {
++    curr_bag_.iterate_all_and_clear([&](NodeId f) {
+       assert(load_dist(f) < threshold_);
+       if constexpr (use_local_queue) {
+         NodeId local_queue[MAX_QUEUE_SIZE];
+         size_t front = 0, rear = 0;
+         size_t vertices_visited = 0;
+         size_t edges_processed = 0;
+-        const size_t max_edges = queue_size * EDGE_PER_CACHELINE;
++        const size_t max_edges = MAX_QUEUE_SIZE * EDGE_PER_CACHELINE;
+         local_queue[rear++] = f;
+         while (front < rear && vertices_visited < MAX_QUEUE_SIZE &&
+                edges_processed < max_edges) {
+@@ -151,33 +131,23 @@ class BFS {
+ 
+   sequence<NodeId> bfs(NodeId s) {
+     parallel_for(0, graph_.n, [&](size_t i) {
+-      in_curr_frontier_[i].store(false, std::memory_order_relaxed);
+-      in_next_frontier_[i].store(false, std::memory_order_relaxed);
+       dist_[i] = DIST_MAX;
+     });
+     dist_[s] = 0;
+-    in_curr_frontier_[s].store(true, std::memory_order_relaxed);
+     threshold_ = delta_;
+ 
+     [[maybe_unused]] int round = 0;
+     curr_bag_.insert(s);
+     while (true) {
+       internal::timer t;
+-      size_t frontier_size = curr_bag_.pack_into(make_slice(frontier_));
+-      if (frontier_size == 0) {
++      if (curr_bag_.empty()) {
+         break;
+       }
+-      while (frontier_size) {
+-        parallel_for(0, frontier_size, [&](NodeId i) {
+-          in_curr_frontier_[frontier_[i]].store(false,
+-                                                std::memory_order_release);
+-        });
+-        sparse_relax(frontier_size);
+-        frontier_size = curr_bag_.pack_into(make_slice(frontier_));
++      while (!curr_bag_.empty()) {
++        sparse_relax();
+       }
+       round++;
+       std::swap(curr_bag_, next_bag_);
+-      std::swap(in_curr_frontier_, in_next_frontier_);
+       threshold_ += delta_;
+     }
+     return dist_;
