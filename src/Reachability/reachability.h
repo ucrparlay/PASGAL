@@ -15,15 +15,26 @@ using namespace std;
 using namespace parlay;
 
 // Threshold for ending each per-task local-queue burst:
-//   DUAL   = stop when EITHER vertices_visited >= max_queue_size OR
-//            edges_processed >= max_edges (current behaviour).
-//   VERTEX = stop when vertices_visited >= max_queue_size.  No edge bound;
-//            no adaptive scaling.
-//   EDGE   = stop when edges_processed >= max_edges, where max_edges still
-//            uses the adaptive scaling
-//            (queue_size = min(max_queue_size, num_threads*beta/frontier_size)).
-//            No vertex bound.
-enum class ThresholdMode { DUAL = 0, VERTEX = 1, EDGE = 2 };
+//   DUAL         = stop when EITHER vertices_visited >= max_queue_size OR
+//                  edges_processed >= max_edges (current behaviour).
+//   VERTEX       = stop when vertices_visited >= max_queue_size.  No edge
+//                  bound; no adaptive scaling.
+//   EDGE         = stop when edges_processed >= max_edges, where max_edges
+//                  uses adaptive scaling
+//                  (queue_size = min(max_queue_size, num_threads*beta/frontier_size)).
+//                  No vertex bound.
+//   GRAPH_DEG    = vertex bound, but cap = clamp(c_const / (G.m/G.n), 10,
+//                  max_queue_size).  Computed once at construction.
+//   FRONTIER_DEG = vertex bound, cap = clamp(c_const / frontier_avg_deg,
+//                  10, max_queue_size).  Recomputed each relax() call
+//                  using the average out-degree of the current frontier.
+enum class ThresholdMode {
+  DUAL = 0,
+  VERTEX = 1,
+  EDGE = 2,
+  GRAPH_DEG = 3,
+  FRONTIER_DEG = 4,
+};
 
 template <class Graph>
 class Reachability {
@@ -50,12 +61,16 @@ class Reachability {
   static constexpr size_t EDGE_PER_CACHELINE =
       CACHELINE_SIZE / sizeof(typename Graph::Edge);
 
+  static constexpr size_t Q_MIN = 1;
+
   const Graph &G;
   hashbag<NodeId> bag;
   sequence<NodeId> frontier;
   sequence<atomic<bool>> visited;
   size_t beta_;
   size_t max_queue_size_;
+  size_t c_const_;          // numerator for GRAPH_DEG / FRONTIER_DEG
+  size_t graph_deg_q_;      // precomputed cap for GRAPH_DEG
   ThresholdMode mode_;
   constexpr static bool use_local_queue = true;
 
@@ -66,21 +81,32 @@ class Reachability {
   // and gives the widest "near-optimal" plateau (q in [1000, 20000]).
   Reachability(const Graph &_G, size_t beta = 2048,
                size_t max_queue_size = 2000,
-               ThresholdMode mode = ThresholdMode::VERTEX)
+               ThresholdMode mode = ThresholdMode::VERTEX,
+               size_t c_const = 0)
       : G(_G), bag(G.n), beta_(beta), max_queue_size_(max_queue_size),
-        mode_(mode) {
+        c_const_(c_const), mode_(mode) {
     frontier = sequence<NodeId>::uninitialized(G.n);
     visited = sequence<atomic<bool>>(G.n);
+    // Precompute the per-graph effective q for GRAPH_DEG mode.
+    double avg_deg = G.n ? double(G.m) / double(G.n) : 1.0;
+    if (avg_deg < 1.0) avg_deg = 1.0;
+    size_t q = c_const_ ? size_t(double(c_const_) / avg_deg) : max_queue_size_;
+    if (q < Q_MIN) q = Q_MIN;
+    if (q > max_queue_size_) q = max_queue_size_;
+    graph_deg_q_ = q;
   }
 
   size_t beta() const { return beta_; }
   size_t max_queue_size() const { return max_queue_size_; }
+  size_t c_const() const { return c_const_; }
   ThresholdMode mode() const { return mode_; }
   const char *mode_str() const {
     switch (mode_) {
-      case ThresholdMode::DUAL:   return "dual";
-      case ThresholdMode::VERTEX: return "vertex";
-      case ThresholdMode::EDGE:   return "edge";
+      case ThresholdMode::DUAL:         return "dual";
+      case ThresholdMode::VERTEX:       return "vertex";
+      case ThresholdMode::EDGE:         return "edge";
+      case ThresholdMode::GRAPH_DEG:    return "graph_deg";
+      case ThresholdMode::FRONTIER_DEG: return "frontier_deg";
     }
     return "?";
   }
@@ -106,11 +132,12 @@ class Reachability {
         beta_);
   }
 
-  void visit_neighbors_sequential(NodeId u, NodeId *local_queue, size_t &rear) {
+  void visit_neighbors_sequential(NodeId u, NodeId *local_queue, size_t &rear,
+                                  size_t cap) {
     for (EdgeId i = G.offsets[u]; i < G.offsets[u + 1]; i++) {
       NodeId v = G.edges[i].v;
       if (!visited[v].exchange(true, std::memory_order_relaxed)) {
-        if (rear < max_queue_size_) {
+        if (rear < cap) {
           local_queue[rear++] = v;
         } else {
           add_to_frontier(v);
@@ -119,10 +146,36 @@ class Reachability {
     }
   }
 
+  // Compute the effective vertex cap for this relax() based on mode.
+  size_t effective_q(size_t frontier_size) {
+    switch (mode_) {
+      case ThresholdMode::GRAPH_DEG:
+        return graph_deg_q_;
+      case ThresholdMode::FRONTIER_DEG: {
+        // Average out-degree of the current frontier.
+        size_t total_edges = parlay::reduce(parlay::delayed_tabulate(
+            frontier_size, [&](size_t i) -> size_t {
+              NodeId u = frontier[i];
+              return G.offsets[u + 1] - G.offsets[u];
+            }));
+        double avg = frontier_size ? double(total_edges) / double(frontier_size)
+                                   : 1.0;
+        if (avg < 1.0) avg = 1.0;
+        size_t q = c_const_ ? size_t(double(c_const_) / avg) : max_queue_size_;
+        if (q < Q_MIN) q = Q_MIN;
+        if (q > max_queue_size_) q = max_queue_size_;
+        return q;
+      }
+      default:
+        return max_queue_size_;
+    }
+  }
+
   void relax(size_t frontier_size) {
     [[maybe_unused]] static const int num_threads = parlay::num_workers();
+    const size_t cap = effective_q(frontier_size);
     const size_t queue_size = std::min(
-        max_queue_size_,
+        cap,
         std::max((size_t)1, num_threads * beta_ / frontier_size));
 
     parallel_for(
@@ -149,10 +202,12 @@ class Reachability {
               if (front >= rear) return false;
               switch (mode_) {
                 case ThresholdMode::DUAL:
-                  return vertices_visited < max_queue_size_ &&
+                  return vertices_visited < cap &&
                          edges_processed < max_edges;
                 case ThresholdMode::VERTEX:
-                  return vertices_visited < max_queue_size_;
+                case ThresholdMode::GRAPH_DEG:
+                case ThresholdMode::FRONTIER_DEG:
+                  return vertices_visited < cap;
                 case ThresholdMode::EDGE:
                   return edges_processed < max_edges;
               }
@@ -164,7 +219,7 @@ class Reachability {
               size_t deg = G.offsets[u + 1] - G.offsets[u];
               edges_processed += deg;
               if (deg < beta_) {
-                visit_neighbors_sequential(u, local_queue, rear);
+                visit_neighbors_sequential(u, local_queue, rear, cap);
               } else {
                 visit_neighbors_parallel(u);
               }
