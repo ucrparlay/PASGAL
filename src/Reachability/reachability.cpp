@@ -62,8 +62,7 @@ void run(Algo &algo, const Graph &G, bool verify,
     NodeId s = hash32(v) % G.n;
     double average_time = run(algo, G, verify, s);
     ofs << graph_name << '\t' << s << '\t' << average_time << '\t'
-        << algo.beta() << '\t' << algo.max_queue_size() << '\t'
-        << algo.mode_str() << '\t' << algo.c_const() << '\n';
+        << algo.beta() << '\t' << algo.max_queue_size() << '\n';
   }
 }
 
@@ -71,7 +70,7 @@ int main(int argc, char *argv[]) {
   if (argc == 1) {
     fprintf(stderr,
             "Usage: %s [-i input_file] [-o output_tsv] [-s] [-v] [-r source]"
-            " [-b beta] [-q max_queue_size] [-c c_const] [-t mode]\n"
+            " [-b beta] [-q max_queue_size]\n"
             "Options:\n"
             "\t-i,\tinput file path\n"
             "\t-o,\tTSV output path\n"
@@ -79,12 +78,7 @@ int main(int argc, char *argv[]) {
             "\t-v,\tverify result\n"
             "\t-r,\tsource vertex\n"
             "\t-b,\tbeta (default 2048)\n"
-            "\t-q,\tmax_queue_size (also serves as cap for adaptive modes,"
-            " default 2000)\n"
-            "\t-c,\tnumerator constant for graph_deg/frontier_deg modes,"
-            " effective q = clamp(c/avg_deg, 10, max_queue_size)\n"
-            "\t-t,\tthreshold mode: dual | vertex | edge | graph_deg |"
-            " frontier_deg (default vertex)\n",
+            "\t-q,\tmax_queue_size (default 2000)\n",
             argv[0]);
     exit(EXIT_FAILURE);
   }
@@ -96,9 +90,7 @@ int main(int argc, char *argv[]) {
   uint32_t source = UINT_MAX;
   size_t beta = 2048;
   size_t max_queue_size = 2000;
-  size_t c_const = 0;
-  ThresholdMode mode = ThresholdMode::VERTEX;
-  while ((c = getopt(argc, argv, "i:o:svr:b:q:c:t:")) != -1) {
+  while ((c = getopt(argc, argv, "i:o:svr:b:q:")) != -1) {
     switch (c) {
       case 'i':
         input_path = optarg;
@@ -121,22 +113,6 @@ int main(int argc, char *argv[]) {
       case 'q':
         max_queue_size = std::stoul(optarg);
         break;
-      case 'c':
-        c_const = std::stoul(optarg);
-        break;
-      case 't': {
-        std::string m = optarg;
-        if (m == "dual")              mode = ThresholdMode::DUAL;
-        else if (m == "vertex")       mode = ThresholdMode::VERTEX;
-        else if (m == "edge")         mode = ThresholdMode::EDGE;
-        else if (m == "graph_deg")    mode = ThresholdMode::GRAPH_DEG;
-        else if (m == "frontier_deg") mode = ThresholdMode::FRONTIER_DEG;
-        else {
-          fprintf(stderr, "Unknown threshold mode: %s\n", optarg);
-          exit(EXIT_FAILURE);
-        }
-        break;
-      }
       default:
         fprintf(stderr, "Unknown option: -%c\n", c);
         exit(EXIT_FAILURE);
@@ -151,12 +127,11 @@ int main(int argc, char *argv[]) {
     G.make_inverse();
   }
 
-  Reachability solver(G, beta, max_queue_size, mode, c_const);
+  Reachability solver(G, beta, max_queue_size);
   fprintf(stdout,
           "Running on %s: |V|=%zu, |E|=%zu, num_src=%d, num_round=%d, "
-          "beta=%zu, max_queue_size=%zu, c_const=%zu, mode=%s\n",
-          input_path, G.n, G.m, NUM_SRC, NUM_ROUND, beta, max_queue_size,
-          c_const, solver.mode_str());
+          "beta=%zu, max_queue_size=%zu\n",
+          input_path, G.n, G.m, NUM_SRC, NUM_ROUND, beta, max_queue_size);
   all_time = 0;
   const std::string graph_name =
       std::filesystem::path(input_path).filename().string();
