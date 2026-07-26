@@ -43,13 +43,45 @@ all: bfs seq-bfs bfs_test bfs_delta bfs_delta_winning_tree
 bfs:	bfs.cpp bfs.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs.cpp -o bfs
 
+bfs_bench:	bfs_bench.cpp bfs.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_bench.cpp -o bfs_bench
+
+bfs_chunk_bench:	bfs_bench.cpp bfs.h ../chunkbag.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) -DBAG_CHUNK bfs_bench.cpp -o bfs_chunk_bench
+
+bfs_strict_chunk_bench:	bfs_bench.cpp bfs_strict.h ../chunkbag.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) -DBAG_CHUNK -DBFS_STRICT bfs_bench.cpp -o bfs_strict_chunk_bench
+
+bfs_chunk:	bfs.cpp bfs.h seq-bfs.h ../chunkbag.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) -DBAG_CHUNK bfs.cpp -o bfs_chunk
+
+bfs_delta_bench:	bfs_delta_bench.cpp bfs_delta.h ../chunkbag.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_delta_bench.cpp -o bfs_delta_bench
+
+# Sanitizer builds (separate binaries; asserts stay enabled via -UNDEBUG)
+SAN_FLAGS = -std=c++20 -Wall -Wextra -O1 -g -pthread $(INCLUDE_PATH)
+
+sanitizers: bfs_tsan bfs_chunk_tsan bfs_asan bfs_chunk_asan
+
+bfs_tsan:	bfs.cpp bfs.h seq-bfs.h
+	clang++ $(SAN_FLAGS) -fsanitize=thread bfs.cpp -o bfs_tsan
+
+bfs_chunk_tsan:	bfs.cpp bfs.h seq-bfs.h ../chunkbag.h
+	clang++ $(SAN_FLAGS) -fsanitize=thread -DBAG_CHUNK bfs.cpp -o bfs_chunk_tsan
+
+bfs_asan:	bfs.cpp bfs.h seq-bfs.h
+	clang++ $(SAN_FLAGS) -fsanitize=address bfs.cpp -o bfs_asan
+
+bfs_chunk_asan:	bfs.cpp bfs.h seq-bfs.h ../chunkbag.h
+	clang++ $(SAN_FLAGS) -fsanitize=address -DBAG_CHUNK bfs.cpp -o bfs_chunk_asan
+
 seq-bfs:	seq-bfs.cpp seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) seq-bfs.cpp -o seq-bfs
 
 bfs_test:	bfs_test.cpp bfs.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_test.cpp -o bfs_test
 
-bfs_delta:	bfs_delta.cpp bfs_delta.h seq-bfs.h
+bfs_delta:	bfs_delta.cpp bfs_delta.h seq-bfs.h ../chunkbag.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_delta.cpp -o bfs_delta
 
 bfs_delta_winning_tree:	bfs_delta_winning_tree.cpp bfs_delta_winning_tree.h seq-bfs.h

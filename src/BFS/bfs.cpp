@@ -93,7 +93,11 @@ int main(int argc, char *argv[]) {
   fprintf(stdout, "Running on %s: |V|=%zu, |E|=%zu, num_src=%d, num_round=%d\n",
           input_path, G.n, G.m, NUM_SRC, NUM_ROUND);
 
+#if defined(BAG_CHUNK)
+  BFS<decltype(G), chunkbag> solver(G);
+#else
   BFS solver(G);
+#endif
   if (source == UINT_MAX) {
     run(solver, G, verify);
   } else {
