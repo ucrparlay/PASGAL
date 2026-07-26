@@ -1,4 +1,4 @@
-#include "reachability.h"
+#include "reachability_winning_tree.h"
 
 #include <filesystem>
 #include <fstream>
@@ -78,18 +78,18 @@ int main(int argc, char *argv[]) {
             "\t-v,\tverify result\n"
             "\t-r,\tsource vertex\n"
             "\t-b,\tbeta (default 2048)\n"
-            "\t-q,\tmax_queue_size (default 2000)\n",
+            "\t-q,\tmax_queue_size (default 1000)\n",
             argv[0]);
     exit(EXIT_FAILURE);
   }
   char c;
   char const *input_path = nullptr;
-  char const *output_path = "reachability.tsv";
+  char const *output_path = "reachability_winning_tree.tsv";
   bool symmetrized = false;
   bool verify = false;
   uint32_t source = UINT_MAX;
   size_t beta = 2048;
-  size_t max_queue_size = 2000;
+  size_t max_queue_size = 1000;
   while ((c = getopt(argc, argv, "i:o:svr:b:q:")) != -1) {
     switch (c) {
       case 'i':
@@ -127,11 +127,12 @@ int main(int argc, char *argv[]) {
     G.make_inverse();
   }
 
-  Reachability solver(G, beta, max_queue_size);
   fprintf(stdout,
           "Running on %s: |V|=%zu, |E|=%zu, num_src=%d, num_round=%d, "
           "beta=%zu, max_queue_size=%zu\n",
           input_path, G.n, G.m, NUM_SRC, NUM_ROUND, beta, max_queue_size);
+
+  ReachabilityWinningTree solver(G, beta, max_queue_size);
   all_time = 0;
   const std::string graph_name =
       std::filesystem::path(input_path).filename().string();
