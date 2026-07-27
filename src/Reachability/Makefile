@@ -38,13 +38,16 @@ ifdef STAT
 CPPFLAGS += -DSTAT
 endif
 
-all: reachability reachability_winning_tree
+all: reachability reachability_bench reachability_winning_tree
 
-reachability:	reachability.cpp reachability.h
+reachability:	reachability.cpp reachability.h ../chunkbag.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) reachability.cpp -o reachability
+
+reachability_bench:	reachability_bench.cpp reachability.h ../chunkbag.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) reachability_bench.cpp -o reachability_bench
 
 reachability_winning_tree:	reachability_winning_tree.cpp reachability_winning_tree.h ../winning_tree.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) reachability_winning_tree.cpp -o reachability_winning_tree
 
 clean:
-	rm -f reachability reachability_winning_tree
+	rm -f reachability reachability_bench reachability_winning_tree

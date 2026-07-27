@@ -1,20 +1,23 @@
 # Reachability
 
 Parallel reachability (transitive closure of a single source) on the PASGAL
-graph format.  The implementation is a **sparse-only push BFS** with a
-multi-hop local queue.  Direction optimization (sparse↔dense switching) is
-intentionally out of scope — see the plan section below.
+graph format.  Push (sparse) relaxation with a multi-hop local queue, pull
+(dense) relaxation over a frontier bitmap, and direction optimization
+switching between them by frontier density.  The frontier is a chunk bag.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `reachability.h` | Algorithm: `Reachability<Graph>` class (header-only template). Hashbag frontier. |
+| `reachability.h` | Algorithm: `Reachability<Graph>` class (header-only template). Chunkbag frontier, push/pull direction optimization. |
 | `reachability.cpp` | CLI driver, timing harness, sequential-BFS verifier. |
-| `reachability_winning_tree.{h,cpp}` | Same algorithm with `WinningTree` instead of hashbag. Kept for reference (slower; see results below). |
-| `run_reachability.py` | Single-config sweep over the standard graph set. |
-| `sweep_reachability.py` | Parameter sweep, **resumable** (skips configs already in the output TSV). |
-| `Makefile` / `CMakeLists.txt` | Build. Builds both `reachability` and `reachability_winning_tree`. |
+| `reachability_bench.cpp` | Beta sweep across many sources per invocation; reports time, rounds, dense rounds. |
+| `reachability_winning_tree.{h,cpp}` | The *previous* sparse-only algorithm with `WinningTree` instead of a bag. Kept for reference (slower; see results below). |
+| `Makefile` / `CMakeLists.txt` | Build. `make` builds `reachability`, `reachability_bench`, `reachability_winning_tree`. |
+
+The driver script `run_reachability.py` lives in `Synchronization-Model/`,
+not here.  The previous hashbag implementation and its sweep outputs are
+kept outside the repo, in `~/Projects/Model/attic/reachability/`.
 
 ## Algorithm
 
@@ -46,39 +49,38 @@ keeping the work-stealing scheduler effective.
 
 | Parameter | Meaning | Default |
 |---|---|---|
-| `beta` (`-b`) | Edges per burst (also the `parallel_for` granularity in `visit_neighbors_parallel` and the `deg < beta` threshold for sequential vs parallel fan-out). | **2048** |
-| `max_queue_size` (`-q`) | Vertex cap on the per-task local queue. | **2000** |
-| `mode` (`-t`) | Burst exit condition: `dual` / `vertex` / `edge`. | **`vertex`** |
+| `beta` (`-b`) | Edges per burst, a runtime member. | **2048** |
+| `MAX_QUEUE` | Vertex cap on the per-task local queue, `static constexpr`. | **4096** |
+| `SPARSE_TH` | Go dense when the frontier holds ≥ `n / SPARSE_TH` vertices. | **20** |
+| `BLOCK_SIZE` | `deg <` this expands a vertex sequentially, else in parallel. | **1024** |
 
-Inside each burst:
+Each burst walks until the edge budget runs out:
 
 ```cpp
-const size_t queue_size = min(max_queue_size,
-                              max(1, num_threads * beta / frontier_size));
-const size_t max_edges  = queue_size * EDGE_PER_CACHELINE;
-
-while (front < rear && /* mode-dependent condition */) { ... }
-//   mode = vertex : vertices_visited < max_queue_size
-//   mode = edge   : edges_processed   < max_edges
-//   mode = dual   : both
+while (front < rear && edges < beta) { ... }
 ```
 
-`queue_size` is the **adaptive** per-task cap — small when the frontier is
-large (so there's enough work for everyone), large when the frontier is
-small (so each task chain-walks further).
-
-The local queue is a `thread_local std::vector<NodeId>`, lazily resized to
-`max_queue_size` on first use, reused across tasks on the same worker.
+A flat budget replaced the earlier adaptive `queue_size` (which scaled with
+`num_threads * beta / frontier_size`) and the `dual`/`vertex`/`edge` mode
+selector; both were measured to be noise here.  The local queue is a plain
+stack array of `MAX_QUEUE` entries rather than a `thread_local` vector.
 
 ### Implementation notes
 
-- **`visited`** is `parlay::sequence<std::atomic<bool>>` with
-  `exchange(true, std::memory_order_relaxed)` on the hot path.  Relaxed
-  ordering is sufficient because `visited[v]` is just a dedup flag — no
-  happens-before relation needs to be established between vertices.
-- **No `in_frontier` array.**  Every caller of `add_to_frontier(v)` has
-  just won `visited[v].exchange(true)`, so each `v` is uniquely owned by
-  one thread per round; the bag insert needs no extra dedup.
+- **`visited`** is `parlay::sequence<uint8_t>` claimed with
+  `compare_and_swap`.  It is only a dedup flag, so no happens-before
+  relation needs to be established between vertices.
+- **`in_frontier` is back.**  It was dropped when the algorithm was
+  sparse-only, because every caller of `add_to_frontier(v)` had just won
+  the `visited[v]` CAS and so uniquely owned `v`.  That no longer holds:
+  `dense_to_sparse()` refills the bag from the bitmap, whose vertices had
+  their `visited` CAS won earlier inside `dense_relax()`, so the bag insert
+  needs its own dedup flag.
+- **The pull pass exits on its first hit.**  With no distance to minimize,
+  the first reachable in-neighbor settles a vertex, so the in-edge scan
+  always breaks early — unlike delta-stepping BFS, whose scan must stay
+  permissive.  For the same reason the local-queue walk costs no
+  speculation, so `beta` trades rounds against redundant work only.
 - **Verification** uses `BFS/seq-bfs.h` (a plain `std::queue` BFS) as
   ground truth — no parlay primitives, fully independent.
 
@@ -96,7 +98,7 @@ make SERIAL=1              # single-threaded debug build
 
 ```bash
 ./reachability -i <graph.bin> [-o <output.tsv>] [-s] [-v] [-r <source>] \
-               [-b <beta>] [-q <max_queue_size>] [-t <mode>]
+               [-b <beta>] [-D]
 ```
 
 | Flag | Meaning |
@@ -107,10 +109,22 @@ make SERIAL=1              # single-threaded debug build
 | `-v` | Verify each result against sequential BFS. |
 | `-r <id>` | Single source; otherwise averages over 5 hash-derived sources. |
 | `-b <n>` | Burst edge budget (default 2048). |
-| `-q <n>` | Local-queue vertex cap (default 2000). |
-| `-t <m>` | Threshold mode `dual` / `vertex` / `edge` (default `vertex`). |
+| `-D` | Disable direction optimization (push only). |
 
-Output TSV columns: `graph\tsource\ttime\tbeta\tmax_queue_size\tmode`.
+Output TSV columns: `graph\tsource\ttime\tbeta\trounds\tdense_rounds`.
+
+### Beta sweep
+
+```bash
+./reachability_bench -i <graph.bin> [-s] (-r <source>).. [-n <reps>] \
+                     (-b <beta>).. [-D | -A]
+```
+
+Many sources per invocation, so a large graph is read and transposed once;
+`-A` measures both direction arms in the same process.  Emits
+`REACH_SOURCE` and `REACH_TIME <mode> <beta> <rep> <sec> <rounds>
+<dense_rounds> <reached>`, and fails if any beta or arm reaches a different
+vertex count than the first measurement for that source.
 
 ### Standard sweep (default config)
 
@@ -134,7 +148,11 @@ in the TSV are detected and skipped.
 
 Output → `results/<date>_reachability_post_cleanup_sweep.tsv`.
 
-## Empirical results
+## Empirical results (previous sparse-only implementation)
+
+Everything in this section predates direction optimization and the chunkbag
+frontier, and the `q`/`mode` knobs it tunes no longer exist.  Kept because
+the per-graph rankings are still informative; the numbers are not current.
 
 From the wide sweep at `results/2026-04-28_reachability_threshold_sweep.tsv`
 (12 graphs × 3 modes × 16 q values × 5 sources):
@@ -174,16 +192,16 @@ without a level-correctness benefit (no delta-stepping in plain
 reachability).  `reachability_winning_tree` exists for reproducibility
 but is not the recommended path.
 
-## Plan (sparse-only refinement)
+## Plan (superseded)
 
-The current plan, kept at `~/.claude/plans/okay-good-do-you-cached-porcupine.md`,
-is sparse-only.  Direction optimization, AST-based connectivity for
-symmetric graphs, multi-source bitmask, and continuation-style spawning
-are all explicitly out of scope under the current paper framing.
+This plan was written when the algorithm was deliberately sparse-only.
+Direction optimization has since been implemented, so the framing below no
+longer holds; AST-based connectivity for symmetric graphs, multi-source
+bitmask, and continuation-style spawning remain out of scope.
 
 | Step | Status | Notes |
 |---|---|---|
-| 1. Drop `in_frontier`, keep atomic `visited`, relax memory ordering | **Done** | One fewer per-node atomic; ~5–10% speedup expected on small-frontier workloads. |
+| 1. Drop `in_frontier`, keep atomic `visited`, relax memory ordering | **Reverted** | `dense_to_sparse()` reinserts vertices whose `visited` CAS was already won, so the bag needs its own dedup flag. |
 | 2. Re-enable `-v` in `sweep_reachability.py` and confirm correctness post-cleanup | **Pending** | Script already updated; just needs to be run. |
 | 3. Per-round diagnostic logging (paper instrumentation) | On hold | Round#, frontier size, sum of degrees, wall time — for α/β-validation plots. |
 | 4. Theoretical write-up of `q ≈ 2000` from machine α/β | On hold | Calculation goes in the paper, not the code. |

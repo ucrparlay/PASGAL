@@ -18,7 +18,7 @@ template <class Algo, class Graph, class NodeId = typename Graph::NodeId>
 double run(Algo &algo, const Graph &G, bool verify, NodeId s) {
   printf("source %-10d\n", s);
   double total_time = 0;
-  sequence<bool> visited;
+  sequence<uint8_t> visited;
   for (int i = 0; i <= NUM_ROUND; i++) {
     internal::timer t;
     visited = algo.reachability(s);
@@ -31,7 +31,8 @@ double run(Algo &algo, const Graph &G, bool verify, NodeId s) {
     }
   }
   double average_time = total_time / NUM_ROUND;
-  printf("Average time: %f\n", average_time);
+  printf("Average time: %f (rounds %zu, dense %zu)\n", average_time,
+         algo.rounds(), algo.dense_rounds());
 
   all_time += average_time;
 
@@ -41,11 +42,11 @@ double run(Algo &algo, const Graph &G, bool verify, NodeId s) {
     Seq_BFS verifier(G);
     auto exp_dist = verifier.bfs(s);
     for (size_t i = 0; i < G.n; i++) {
-      if (visited[i] != (exp_dist[i] != DIST_MAX)) {
+      if ((bool)visited[i] != (exp_dist[i] != DIST_MAX)) {
         printf("visited[%zu] = %d, exp_dist[%zu] = %d\n", i, visited[i], i,
                exp_dist[i]);
       }
-      assert(visited[i] == (exp_dist[i] != DIST_MAX));
+      assert((bool)visited[i] == (exp_dist[i] != DIST_MAX));
     }
     printf("Passed!\n");
   }
@@ -54,15 +55,15 @@ double run(Algo &algo, const Graph &G, bool verify, NodeId s) {
 }
 
 template <class Algo, class Graph>
-void run(Algo &algo, const Graph &G, bool verify,
-         const std::string &graph_name, const char *output_path) {
+void run(Algo &algo, const Graph &G, bool verify, const std::string &graph_name,
+         const char *output_path) {
   using NodeId = typename Graph::NodeId;
   std::ofstream ofs(output_path, std::ios_base::app);
   for (int v = 0; v < NUM_SRC; v++) {
     NodeId s = hash32(v) % G.n;
     double average_time = run(algo, G, verify, s);
-    ofs << graph_name << '\t' << s << '\t' << average_time << '\t'
-        << algo.beta() << '\t' << algo.max_queue_size() << '\n';
+    ofs << graph_name << '\t' << s << '\t' << average_time << '\t' << algo.beta
+        << '\t' << algo.rounds() << '\t' << algo.dense_rounds() << '\n';
   }
 }
 
@@ -70,15 +71,15 @@ int main(int argc, char *argv[]) {
   if (argc == 1) {
     fprintf(stderr,
             "Usage: %s [-i input_file] [-o output_tsv] [-s] [-v] [-r source]"
-            " [-b beta] [-q max_queue_size]\n"
+            " [-b beta] [-D]\n"
             "Options:\n"
             "\t-i,\tinput file path\n"
             "\t-o,\tTSV output path\n"
             "\t-s,\tsymmetrized input graph\n"
             "\t-v,\tverify result\n"
             "\t-r,\tsource vertex\n"
-            "\t-b,\tbeta (default 2048)\n"
-            "\t-q,\tmax_queue_size (default 2000)\n",
+            "\t-b,\tbeta, the walk's edge budget (default 2048)\n"
+            "\t-D,\tdisable direction optimization\n",
             argv[0]);
     exit(EXIT_FAILURE);
   }
@@ -87,10 +88,10 @@ int main(int argc, char *argv[]) {
   char const *output_path = "reachability.tsv";
   bool symmetrized = false;
   bool verify = false;
+  bool direction_optimizing = true;
   uint32_t source = UINT_MAX;
   size_t beta = 2048;
-  size_t max_queue_size = 2000;
-  while ((c = getopt(argc, argv, "i:o:svr:b:q:")) != -1) {
+  while ((c = getopt(argc, argv, "i:o:svr:b:D")) != -1) {
     switch (c) {
       case 'i':
         input_path = optarg;
@@ -110,8 +111,8 @@ int main(int argc, char *argv[]) {
       case 'b':
         beta = std::stoul(optarg);
         break;
-      case 'q':
-        max_queue_size = std::stoul(optarg);
+      case 'D':
+        direction_optimizing = false;
         break;
       default:
         fprintf(stderr, "Unknown option: -%c\n", c);
@@ -127,11 +128,14 @@ int main(int argc, char *argv[]) {
     G.make_inverse();
   }
 
-  Reachability solver(G, beta, max_queue_size);
+  Reachability solver(G);
+  solver.beta = beta;
+  solver.direction_optimizing = direction_optimizing;
   fprintf(stdout,
           "Running on %s: |V|=%zu, |E|=%zu, num_src=%d, num_round=%d, "
-          "beta=%zu, max_queue_size=%zu\n",
-          input_path, G.n, G.m, NUM_SRC, NUM_ROUND, beta, max_queue_size);
+          "beta=%zu, direction_optimizing=%d\n",
+          input_path, G.n, G.m, NUM_SRC, NUM_ROUND, beta,
+          (int)direction_optimizing);
   all_time = 0;
   const std::string graph_name =
       std::filesystem::path(input_path).filename().string();
@@ -141,7 +145,8 @@ int main(int argc, char *argv[]) {
     double average_time = run(solver, G, verify, source);
     std::ofstream ofs(output_path, std::ios_base::app);
     ofs << graph_name << '\t' << source << '\t' << average_time << '\t'
-        << solver.beta() << '\t' << solver.max_queue_size() << '\n';
+        << solver.beta << '\t' << solver.rounds() << '\t'
+        << solver.dense_rounds() << '\n';
   }
   return 0;
 }
