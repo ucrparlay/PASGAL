@@ -5,6 +5,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "graph.h"
 
@@ -63,9 +64,12 @@ void verify_distances(const Sequence &actual, const Sequence &expected,
 
 int main(int argc, char *argv[]) {
   char const *input_path = nullptr;
-  char const *distance_path = nullptr;
+  // Repeatable: several sources per invocation amortize the graph read and,
+  // for a directed graph, the transpose.  -o is given once per -r, in the
+  // same order.
+  std::vector<uint32_t> sources;
+  std::vector<std::string> distance_paths;
   bool symmetrized = false;
-  uint32_t source = std::numeric_limits<uint32_t>::max();
   int measured_rounds = 10;
 
   char option;
@@ -75,29 +79,30 @@ int main(int argc, char *argv[]) {
         input_path = optarg;
         break;
       case 'o':
-        distance_path = optarg;
+        distance_paths.emplace_back(optarg);
         break;
       case 's':
         symmetrized = true;
         break;
       case 'r':
-        source = static_cast<uint32_t>(std::stoul(optarg));
+        sources.push_back(static_cast<uint32_t>(std::stoul(optarg)));
         break;
       case 'n':
         measured_rounds = std::stoi(optarg);
         break;
       default:
         fprintf(stderr,
-                "Usage: %s -i graph -r source -o distances [-s] [-n rounds]\n",
+                "Usage: %s -i graph (-r source -o distances).. [-s] "
+                "[-n rounds]\n",
                 argv[0]);
         return EXIT_FAILURE;
     }
   }
-  if (input_path == nullptr || distance_path == nullptr ||
-      source == std::numeric_limits<uint32_t>::max() ||
-      measured_rounds < 1) {
+  if (input_path == nullptr || sources.empty() || measured_rounds < 1 ||
+      distance_paths.size() != sources.size()) {
     fprintf(stderr,
-            "Usage: %s -i graph -r source -o distances [-s] [-n rounds]\n",
+            "Usage: %s -i graph (-r source -o distances).. [-s] "
+            "[-n rounds]\n  -r and -o repeat together, one -o per -r\n",
             argv[0]);
     return EXIT_FAILURE;
   }
@@ -108,30 +113,39 @@ int main(int argc, char *argv[]) {
   if (!graph.symmetrized) {
     graph.make_inverse();
   }
-  if (source >= graph.n) {
-    throw std::out_of_range("source vertex is outside the graph");
+  for (uint32_t source : sources) {
+    if (source >= graph.n) {
+      throw std::out_of_range("source vertex is outside the graph");
+    }
   }
 
-  parlay::sequence<uint32_t> reference_distances;
-  for (uint32_t delta = 1; delta <= (1U << 10); delta *= 2) {
-    BFS solver(graph, delta);
-    for (int repetition = -1; repetition < measured_rounds; repetition++) {
-      solver.prepare(source);
-      internal::timer timer;
-      solver.run_prepared();
-      timer.stop();
-      printf("BFS_BENCH_TIME\t%u\t%s\t%.9f\n", delta,
-             repetition < 0 ? "warmup"
-                            : std::to_string(repetition).c_str(),
-             timer.total_time());
-      fflush(stdout);
-      if (delta == 1 && repetition < 0) {
-        reference_distances = solver.distances();
-        write_distances(distance_path, graph.n, source,
-                        reference_distances);
-      } else {
-        verify_distances(solver.distances(), reference_distances, delta,
-                         repetition);
+  for (size_t index = 0; index < sources.size(); index++) {
+    const uint32_t source = sources[index];
+    // Marks which source the timings that follow belong to.  Readers that
+    // pass a single source can ignore it.
+    printf("BFS_BENCH_SOURCE\t%u\n", source);
+    fflush(stdout);
+    parlay::sequence<uint32_t> reference_distances;
+    for (uint32_t delta = 1; delta <= (1U << 10); delta *= 2) {
+      BFS solver(graph, delta);
+      for (int repetition = -1; repetition < measured_rounds; repetition++) {
+        solver.prepare(source);
+        internal::timer timer;
+        solver.run_prepared();
+        timer.stop();
+        printf("BFS_BENCH_TIME\t%u\t%s\t%.9f\n", delta,
+               repetition < 0 ? "warmup"
+                              : std::to_string(repetition).c_str(),
+               timer.total_time());
+        fflush(stdout);
+        if (delta == 1 && repetition < 0) {
+          reference_distances = solver.distances();
+          write_distances(distance_paths[index], graph.n, source,
+                          reference_distances);
+        } else {
+          verify_distances(solver.distances(), reference_distances, delta,
+                           repetition);
+        }
       }
     }
   }

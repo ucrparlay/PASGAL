@@ -55,8 +55,16 @@ class BFS {
   sequence<size_t> dense_block_counts_;
   size_t dense_size_ = 0;       // popcount(dense_frontier_)
   size_t dense_next_size_ = 0;  // popcount(dense_next_frontier_)
-  NodeId dense_min_ = 0;        // lower bound on the frontier's min distance
-  constexpr static bool use_local_queue = true;
+  NodeId dense_min_ = 0;        // the frontier's minimum distance
+  // Per-worker minimum of what sparse passes insert, so the next
+  // frontier's exact minimum costs O(#workers) instead of a scan.  It
+  // cannot be inferred: a local-queue walk can advance several levels at
+  // once, and underestimating kills the pull pass's early exit.
+  struct alignas(64) MinSlot {
+    NodeId value = DIST_MAX;
+  };
+  sequence<MinSlot> insert_min_;
+
 
   NodeId load_dist(NodeId v,
                    std::memory_order order = std::memory_order_acquire) {
@@ -92,6 +100,7 @@ class BFS {
   BFS(const Graph &graph, NodeId delta)
       : graph_(graph),
         delta_(delta),
+
         curr_bag_(bag_capacity(graph.n)),
         next_bag_(bag_capacity(graph.n)) {
     frontier_ = sequence<NodeId>::uninitialized(graph.n);
@@ -103,6 +112,7 @@ class BFS {
     dense_next_frontier_ = sequence<uint64_t>(num_words, 0);
     dense_block_counts_ = sequence<size_t>::uninitialized(
         (num_words + DENSE_BLOCK_WORDS - 1) / DENSE_BLOCK_WORDS);
+    insert_min_ = sequence<MinSlot>(parlay::num_workers());
   }
 
   void add_to_frontier(NodeId v, NodeId dist_v) {
@@ -112,6 +122,10 @@ class BFS {
               expected, true, std::memory_order_acq_rel,
               std::memory_order_relaxed)) {
         curr_bag_.insert(v);
+        MinSlot &slot = insert_min_[parlay::worker_id()];
+        if (dist_v < slot.value) {
+          slot.value = dist_v;
+        }
       }
     } else {
       assert(dist_v == threshold_);
@@ -185,8 +199,20 @@ class BFS {
         dense_size_ = 0;
       }
       sparse_relax(sparse_size);
+      dense_min_ = take_insert_min();
     }
     return true;
+  }
+
+  // Exact minimum of everything the last pass inserted, i.e. the next
+  // frontier's minimum; resets the slots for the pass after it.
+  NodeId take_insert_min() {
+    NodeId m = DIST_MAX;
+    for (MinSlot &slot : insert_min_) {
+      m = std::min(m, slot.value);
+      slot.value = DIST_MAX;
+    }
+    return m == DIST_MAX ? dense_min_ + 1 : m;
   }
 
   // Must run before any relaxation can re-enqueue: clearing inside the
@@ -235,7 +261,9 @@ class BFS {
           // Sparse-era flag surviving the direction switch: retire it.
           in_curr_frontier_[u].store(false, std::memory_order_relaxed);
         }
-        if (du == floor_dist) {  // already minimal for this band
+        // Settled: a parent able to lower u would itself be below
+        // dense_min_, hence final and already applied.
+        if (du <= dense_min_) {
           continue;
         }
         NodeId new_du = du;
@@ -324,15 +352,25 @@ class BFS {
     return total;
   }
 
+  bool walk_gains_depth(size_t frontier_size) {
+    if (graph_.m * MAX_QUEUE_SIZE > (size_t)graph_.n * BETA) {
+      return false;
+    }
+    const size_t samples = std::min<size_t>(frontier_size, 32);
+    size_t edges = 0;
+    for (size_t i = 0; i < samples; i++) {
+      const NodeId v = frontier_[parlay::hash64(i) % frontier_size];
+      edges += (size_t)(graph_.offsets[v + 1] - graph_.offsets[v]);
+    }
+    return edges * MAX_QUEUE_SIZE <= samples * BETA;
+  }
+
   void sparse_relax(size_t frontier_size) {
+    const bool walk = walk_gains_depth(frontier_size);
     parallel_for(0, frontier_size, [&](size_t i) {
       NodeId f = frontier_[i];
       assert(load_dist(f) < threshold_);
-      if constexpr (use_local_queue) {
-        // Walk several levels locally before the next global
-        // sub-iteration -- what makes high-diameter graphs fast; shrinking
-        // BETA to 128 edges costs a road graph 15%.  `rear` never exceeds
-        // MAX_QUEUE_SIZE, so front < rear already caps the vertex count.
+      if (walk) {
         NodeId local_queue[MAX_QUEUE_SIZE];
         size_t front = 0, rear = 0;
         size_t edges_processed = 0;
@@ -371,6 +409,9 @@ class BFS {
       dense_next_frontier_[w] = 0;
     });
     dense_size_ = dense_next_size_ = 0;
+    for (MinSlot &slot : insert_min_) {
+      slot.value = DIST_MAX;
+    }
     dist_[s] = 0;
     in_curr_frontier_[s].store(true, std::memory_order_relaxed);
     threshold_ = delta_;

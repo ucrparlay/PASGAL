@@ -43,15 +43,6 @@ all: bfs seq-bfs bfs_test bfs_delta bfs_delta_winning_tree
 bfs:	bfs.cpp bfs.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs.cpp -o bfs
 
-bfs_bench:	bfs_bench.cpp bfs.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_bench.cpp -o bfs_bench
-
-bfs_chunk_bench:	bfs_bench.cpp bfs.h ../chunkbag.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) -DBAG_CHUNK bfs_bench.cpp -o bfs_chunk_bench
-
-bfs_strict_chunk_bench:	bfs_bench.cpp bfs_strict.h ../chunkbag.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) -DBAG_CHUNK -DBFS_STRICT bfs_bench.cpp -o bfs_strict_chunk_bench
-
 bfs_chunk:	bfs.cpp bfs.h seq-bfs.h ../chunkbag.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) -DBAG_CHUNK bfs.cpp -o bfs_chunk
 
@@ -87,8 +78,11 @@ bfs_delta:	bfs_delta.cpp bfs_delta.h seq-bfs.h ../chunkbag.h
 bfs_delta_winning_tree:	bfs_delta_winning_tree.cpp bfs_delta_winning_tree.h seq-bfs.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_delta_winning_tree.cpp -o bfs_delta_winning_tree
 
-reachability:	reachability.cpp reachability.h seq-bfs.h
+reachability:	reachability.cpp reachability.h seq-bfs.h ../chunkbag.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) reachability.cpp -o reachability
+
+reachability_bench:	reachability_bench.cpp reachability.h ../chunkbag.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) reachability_bench.cpp -o reachability_bench
 
 clean:
 	rm bfs seq-bfs bfs_test
