@@ -6,7 +6,7 @@ endif
 
 CPPFLAGS = -std=c++20 -Wall -Wextra -Werror
 
-INCLUDE_PATH = -I../external/parlaylib/include/ -I../
+INCLUDE_PATH = -I../../../external/parlaylib/include/ -I../../
 
 ifdef CILKPLUS
 CC = clang++

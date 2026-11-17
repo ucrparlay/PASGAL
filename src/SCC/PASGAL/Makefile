@@ -4,9 +4,9 @@ else
 CC = clang++
 endif
 
-CPPFLAGS = -std=c++20 -Wall -Wextra -Werror
+CPPFLAGS = -std=c++20 -Wall -Wextra -Werror -Wno-unused-but-set-variable
 
-INCLUDE_PATH = -I../../external/parlaylib/include/ -I..
+INCLUDE_PATH = -I../../../external/parlaylib/include/ -I../..
 
 ifdef CILKPLUS
 CC = clang++
@@ -40,7 +40,7 @@ scc:	scc.cpp scc.h reach.h multi_reach.h resizable_table.h
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) scc.cpp -o scc
 
 scc_seq: scc.cpp scc.h reach.h multi_reach.h resizable_table.h
-	$(CC) -std=c++20 -Wall -Wextra -Werror -DPARLAY_SEQUENTIAL -O3 -mcx16 -march=native  $(INCLUDE_PATH) scc.cpp -o scc_seq
+	$(CC) -std=c++20 -Wall -Wextra -Werror -Wno-unused-but-set-variable -DPARLAY_SEQUENTIAL -O3 -mcx16 -march=native  $(INCLUDE_PATH) scc.cpp -o scc_seq
 tarjan: tarjan.h tarjan.cpp
 	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) tarjan.cpp -o tarjan
 

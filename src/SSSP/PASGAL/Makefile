@@ -6,7 +6,7 @@ endif
 
 CPPFLAGS = -std=c++20 -Wall -Wextra -Werror
 
-INCLUDE_PATH = -I../../external/parlaylib/include/ -I../ -I../../external/
+INCLUDE_PATH = -I../../../external/parlaylib/include/ -I../..
 
 ifdef CILKPLUS
 CC = clang++
@@ -34,16 +34,17 @@ ifdef STDALLOC
 CPPFLAGS += -DPARLAY_USE_STD_ALLOC
 endif
 
-all: bfs seq-bfs bfs_test
+ifdef FLOAT
+CPPFLAGS += -DFLOAT
+endif
 
-bfs:	bfs.cpp bfs.h seq-bfs.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs.cpp -o bfs
+all: sssp dijkstra
 
-seq-bfs:	seq-bfs.cpp seq-bfs.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) seq-bfs.cpp -o seq-bfs
+sssp:	sssp.cpp sssp.h dijkstra.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) sssp.cpp -o sssp
 
-bfs_test:	bfs_test.cpp bfs.h seq-bfs.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_test.cpp -o bfs_test
+dijkstra:	dijkstra.cpp dijkstra.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) dijkstra.cpp -o dijkstra
 
 clean:
-	rm bfs seq-bfs bfs_test
+	rm sssp dijkstra

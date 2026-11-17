@@ -6,7 +6,7 @@ endif
 
 CPPFLAGS = -std=c++20 -Wall -Wextra -Werror
 
-INCLUDE_PATH = -I../../external/parlaylib/include/ -I../../external/ -I.. 
+INCLUDE_PATH = -I../../../external/parlaylib/include/ -I../../ -I../../../external/
 
 ifdef CILKPLUS
 CC = clang++
@@ -34,16 +34,16 @@ ifdef STDALLOC
 CPPFLAGS += -DPARLAY_USE_STD_ALLOC
 endif
 
-all: fast-bcc tarjan-vishkin hopcroft-tarjan
+all: bfs seq-bfs bfs_test
 
-fast-bcc:	fast-bcc.cpp fast-bcc.h connectivity.h ldd.h spanning_forest.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) fast-bcc.cpp -o fast-bcc
+bfs:	bfs.cpp bfs.h seq-bfs.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs.cpp -o bfs
 
-tarjan-vishkin:	tarjan-vishkin.cpp tarjan-vishkin.h connectivity.h ldd.h spanning_forest.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) tarjan-vishkin.cpp -o tarjan-vishkin
+seq-bfs:	seq-bfs.cpp seq-bfs.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) seq-bfs.cpp -o seq-bfs
 
-hopcroft-tarjan:	hopcroft-tarjan.cpp hopcroft-tarjan.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) hopcroft-tarjan.cpp -o hopcroft-tarjan
+bfs_test:	bfs_test.cpp bfs.h seq-bfs.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) bfs_test.cpp -o bfs_test
 
 clean:
-	rm fast-bcc tarjan-vishkin hopcroft-tarjan
+	rm bfs seq-bfs bfs_test

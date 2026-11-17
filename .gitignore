@@ -45,3 +45,8 @@ perf*
 *.exe
 *.out
 *.app
+
+# toggle-tree benchmark scripts (override *.sh above)
+!src/toggle_tree_config.sh
+!src/*/ToggleTree*/*.sh
+src/toggle_tree_config.local.sh
