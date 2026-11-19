@@ -6,7 +6,7 @@ endif
 
 CPPFLAGS = -std=c++20 -Wall -Wextra -Werror
 
-INCLUDE_PATH = -I../../external/parlaylib/include/ -I..
+INCLUDE_PATH = -I../../../external/parlaylib/include/ -I../../../external/ -I../..
 
 ifdef CILKPLUS
 CC = clang++
@@ -34,17 +34,16 @@ ifdef STDALLOC
 CPPFLAGS += -DPARLAY_USE_STD_ALLOC
 endif
 
-ifdef FLOAT
-CPPFLAGS += -DFLOAT
-endif
+all: fast-bcc tarjan-vishkin hopcroft-tarjan
 
-all: sssp dijkstra
+fast-bcc:	fast-bcc.cpp fast-bcc.h connectivity.h ldd.h spanning_forest.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) fast-bcc.cpp -o fast-bcc
 
-sssp:	sssp.cpp sssp.h dijkstra.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) sssp.cpp -o sssp
+tarjan-vishkin:	tarjan-vishkin.cpp tarjan-vishkin.h connectivity.h ldd.h spanning_forest.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) tarjan-vishkin.cpp -o tarjan-vishkin
 
-dijkstra:	dijkstra.cpp dijkstra.h
-	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) dijkstra.cpp -o dijkstra
+hopcroft-tarjan:	hopcroft-tarjan.cpp hopcroft-tarjan.h
+	$(CC) $(CPPFLAGS) $(INCLUDE_PATH) hopcroft-tarjan.cpp -o hopcroft-tarjan
 
 clean:
-	rm sssp dijkstra
+	rm fast-bcc tarjan-vishkin hopcroft-tarjan

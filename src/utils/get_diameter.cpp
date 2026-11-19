@@ -1,6 +1,6 @@
 #include <queue>
 
-#include "BFS/bfs.h"
+#include "BFS/PASGAL/bfs.h"
 #include "connectivity.h"
 #include "graph.h"
 

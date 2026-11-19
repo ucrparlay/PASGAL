@@ -1,3 +1,6 @@
 [submodule "external/parlaylib"]
 	path = external/parlaylib
 	url = https://github.com/cmuparlay/parlaylib.git
+[submodule "external/toggle-tree"]
+	path = external/toggle-tree
+	url = https://github.com/ucrparlay/toggle-tree
